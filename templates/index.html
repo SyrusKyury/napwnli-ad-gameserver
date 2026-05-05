@@ -1,0 +1,139 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900 font-mono">Scoreboard</h1>
+        <p class="text-sm text-gray-500 mt-1">
+            Tick <span class="font-mono font-bold text-napoli-500">{{ tick }}</span>
+            &mdash;
+            {% if active %}
+            <span class="inline-flex items-center gap-1 text-green-600 font-semibold">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                Game running
+            </span>
+            {% else %}
+            <span class="text-gray-400 font-semibold">Game stopped</span>
+            {% endif %}
+        </p>
+    </div>
+    <div class="text-xs text-gray-400 font-mono" id="countdown">
+        Refreshing in <span id="timer">30</span>s
+    </div>
+</div>
+
+{% if teams %}
+<!-- Scoreboard table -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="border-b border-gray-100 bg-gray-50">
+                <th class="text-left px-4 py-3 font-semibold text-gray-500 w-10">#</th>
+                <th class="text-left px-4 py-3 font-semibold text-gray-500">Team</th>
+                <th class="text-right px-4 py-3 font-semibold text-gray-500">Score</th>
+                {% for s in services %}
+                <th class="text-center px-3 py-3 font-semibold text-gray-500 min-w-[140px]">
+                    {{ s.name }}
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in teams %}
+            <tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors {% if loop.first %}bg-napoli-50{% endif %}">
+
+                <!-- Rank -->
+                <td class="px-4 py-3 font-mono font-bold text-gray-400">
+                    {% if loop.index == 1 %}
+                    <span class="text-yellow-500">1</span>
+                    {% elif loop.index == 2 %}
+                    <span class="text-gray-400">2</span>
+                    {% elif loop.index == 3 %}
+                    <span class="text-amber-600">3</span>
+                    {% else %}
+                    {{ loop.index }}
+                    {% endif %}
+                </td>
+
+                <!-- Team name -->
+                <td class="px-4 py-3 font-semibold text-gray-800">
+                    {% if loop.first %}
+                    <i class="fa-solid fa-crown text-yellow-400 mr-1 text-xs"></i>
+                    {% endif %}
+                    {{ t.name }}
+                    <div class="text-xs text-gray-400 font-mono font-normal">{{ t.ip }}</div>
+                </td>
+
+                <!-- Score -->
+                <td class="px-4 py-3 text-right">
+                    <span class="font-mono font-bold text-lg {% if loop.first %}text-napoli-500{% else %}text-gray-700{% endif %}">
+                        {{ "%.2f"|format(t.score) }}
+                    </span>
+                </td>
+
+                <!-- Per-service cells -->
+                {% for s in services %}
+                {% set d = data[t.id][s.id] %}
+                <td class="px-3 py-3 text-center">
+                    <!-- Status badge -->
+                    <span class="inline-block px-2 py-0.5 rounded text-xs font-mono font-bold status-{{ d.status }} mb-1">
+                        {{ d.status }}
+                    </span>
+
+                    <!-- SLA bar -->
+                    <div class="w-full bg-gray-100 rounded-full h-1.5 mb-1">
+                        <div class="h-1.5 rounded-full {% if d.sla >= 80 %}bg-green-500{% elif d.sla >= 50 %}bg-yellow-400{% else %}bg-red-400{% endif %}"
+                             style="width: {{ d.sla }}%"></div>
+                    </div>
+
+                    <!-- Stats row -->
+                    <div class="flex justify-center gap-2 text-xs text-gray-500">
+                        <span title="SLA">
+                            <i class="fa-solid fa-chart-line text-gray-400"></i>
+                            {{ d.sla }}%
+                        </span>
+                        <span title="Flags gained" class="text-green-600">
+                            <i class="fa-solid fa-arrow-up"></i>{{ d.gained }}
+                        </span>
+                        <span title="Flags lost" class="text-red-500">
+                            <i class="fa-solid fa-arrow-down"></i>{{ d.lost }}
+                        </span>
+                    </div>
+                </td>
+                {% endfor %}
+
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Legend -->
+<div class="flex items-center gap-4 mt-4 text-xs text-gray-400">
+    <span><i class="fa-solid fa-chart-line mr-1"></i>SLA%</span>
+    <span class="text-green-600"><i class="fa-solid fa-arrow-up mr-1"></i>Flags gained (attack)</span>
+    <span class="text-red-500"><i class="fa-solid fa-arrow-down mr-1"></i>Flags lost (defense)</span>
+</div>
+
+{% else %}
+<div class="text-center py-20 text-gray-400">
+    <i class="fa-solid fa-flag text-4xl mb-3 block text-napoli-200"></i>
+    <p class="text-lg font-semibold">No teams registered yet.</p>
+    <p class="text-sm mt-1">Head to the <a href="/admin" class="text-napoli-500 hover:underline">admin panel</a> to set up the game.</p>
+</div>
+{% endif %}
+
+<script>
+    let t = 30;
+    const el = document.getElementById('timer');
+    setInterval(() => {
+        t--;
+        if (el) el.textContent = t;
+        if (t <= 0) location.reload();
+    }, 1000);
+</script>
+{% endblock %}

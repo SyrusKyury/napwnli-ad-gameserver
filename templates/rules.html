@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto">
+
+    <div class="mb-8">
+        <h1 class="text-2xl font-bold text-gray-900 font-mono">Rules</h1>
+        <p class="text-sm text-gray-500 mt-1">Everything you need to know to play.</p>
+    </div>
+
+    <!-- Overview -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4">
+        <h2 class="font-bold text-gray-800 text-lg mb-3">
+            <i class="fa-solid fa-circle-info mr-2 text-napoli-400"></i>Overview
+        </h2>
+        <p class="text-sm text-gray-600 leading-relaxed">
+            This is an Attack/Defense CTF. Each team runs the same set of services on their own machine.
+            You score points by keeping your services up (SLA bonus) and by stealing flags from other teams.
+            Flags stolen from you cost you points. The team with the most points at the end wins.
+        </p>
+    </div>
+
+    <!-- API Key -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4">
+        <h2 class="font-bold text-gray-800 text-lg mb-3">
+            <i class="fa-solid fa-key mr-2 text-napoli-400"></i>Your API Key
+        </h2>
+        <p class="text-sm text-gray-600 leading-relaxed">
+            You will receive an API key from the admin before the game starts. Keep it secret - it identifies your team for all API calls.
+            Pass it in every request via the <code class="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-xs">X-Team-Key</code> header.
+        </p>
+    </div>
+
+    <!-- Flag IDs -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4">
+        <h2 class="font-bold text-gray-800 text-lg mb-3">
+            <i class="fa-solid fa-magnifying-glass mr-2 text-napoli-400"></i>Getting Flag IDs
+        </h2>
+        <p class="text-sm text-gray-600 mb-3">
+            Flag IDs tell you where to look for flags on other teams' machines. Fetch them at the start of each tick.
+        </p>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-xs mb-3">
+            <span class="text-napoli-500">GET</span> /api/flagids/&lt;service_id&gt;
+        </div>
+        <p class="text-sm text-gray-600 mb-2">Response:</p>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-xs whitespace-pre">{
+  "10.10.1.2": ["user_42", "user_43"],
+  "10.10.1.3": ["user_17"]
+}</div>
+        <p class="text-sm text-gray-500 mt-3">
+            Each key is a team's IP address. Each value is the list of flag IDs for that team on that service.
+            Use the flag IDs to retrieve the actual flag from the target's service.
+            Only the last 5 ticks of flag IDs are available.
+        </p>
+    </div>
+
+    <!-- Submit -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4">
+        <h2 class="font-bold text-gray-800 text-lg mb-3">
+            <i class="fa-solid fa-paper-plane mr-2 text-napoli-400"></i>Submitting Flags
+        </h2>
+        
+        <p class="text-sm text-gray-600 mb-3">
+            Submit captured flags via a POST request. You can submit one flag at a time or 
+            a list of flags in a single request (maximum 50 per request).
+        </p>
+
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-xs mb-3">
+            POST /api/submit<br>
+            X-Team-Key: &lt;your_api_key&gt;<br>
+            Content-Type: application/json<br>
+            <br>
+            # Single flag format:<br>
+            {"flag": "NPW_exampleflag123"}<br>
+            <br>
+            # Bulk flag format:<br>
+            {"flags": ["NPW_flag1", "NPW_flag2"]}
+        </div>
+
+        <p class="text-sm text-gray-600 mb-3">API Response status codes:</p>
+        <div class="space-y-2 text-sm">
+            <div class="flex items-center gap-3">
+                <span class="inline-block px-2 py-0.5 rounded font-mono text-xs font-bold status-UP w-36 text-center">ACCEPTED</span>
+                <span class="text-gray-600">Flag valid. Points awarded.</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="inline-block px-2 py-0.5 rounded font-mono text-xs font-bold status-DOWN w-36 text-center">INVALID</span>
+                <span class="text-gray-600">Flag does not exist.</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="inline-block px-2 py-0.5 rounded font-mono text-xs font-bold status-DOWN w-36 text-center">OWN_FLAG</span>
+                <span class="text-gray-600">Flag belongs to your team (no points).</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="inline-block px-2 py-0.5 rounded font-mono text-xs font-bold status-DOWN w-36 text-center">EXPIRED</span>
+                <span class="text-gray-600">Flag older than 5 ticks.</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="inline-block px-2 py-0.5 rounded font-mono text-xs font-bold status-MUMBLE w-36 text-center">ALREADY_CAPTURED</span>
+                <span class="text-gray-600">Flag already claimed by someone else.</span>
+            </div>
+        </div>
+        
+        <p class="text-sm text-gray-500 mt-4 border-t pt-3">
+            Rate limit: 1 request per second per team. Submitting excessive invalid flags 
+            may result in restrictions.
+        </p>
+    </div>
+
+    <!-- Scoring -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-4">
+        <h2 class="font-bold text-gray-800 text-lg mb-3">
+            <i class="fa-solid fa-chart-simple mr-2 text-napoli-400"></i>Scoring
+        </h2>
+        <div class="space-y-4 text-sm text-gray-600">
+            <div class="flex gap-3">
+                <div class="mt-0.5 text-green-500 w-5 shrink-0"><i class="fa-solid fa-arrow-up"></i></div>
+                <div>
+                    <span class="font-semibold text-gray-800">SLA bonus (per tick)</span> - for each service that is UP at the end of a tick, your team earns K points. Keeping your services running is rewarded every tick.
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="mt-0.5 text-napoli-500 w-5 shrink-0"><i class="fa-solid fa-crosshairs"></i></div>
+                <div>
+                    <span class="font-semibold text-gray-800">Attack points</span> - when you capture a flag, you earn 10 * your_SLA points. The better your own services are running, the more your attacks are worth.
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="mt-0.5 text-red-500 w-5 shrink-0"><i class="fa-solid fa-shield-halved"></i></div>
+                <div>
+                    <span class="font-semibold text-gray-800">Defense penalty</span> - when a flag is stolen from you, you lose 5 * your_SLA points. If your service is already down, the penalty is reduced.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLA -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 class="font-bold text-gray-800 text-lg mb-3">
+            <i class="fa-solid fa-heart-pulse mr-2 text-napoli-400"></i>SLA
+        </h2>
+        <p class="text-sm text-gray-600 leading-relaxed">
+            SLA (Service Level Agreement) is calculated as the percentage of ticks in which your service was fully operational.
+            A service is considered UP only if all three checker phases pass: check, put, and get.
+            SLA affects both your attack points and your defense penalty, so keeping your services stable is always beneficial.
+        </p>
+    </div>
+
+</div>
+
+{% endblock %}

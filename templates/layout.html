@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Napwnli AD Gameserver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        napoli: {
+                            50:  '#e6f0ff',
+                            100: '#cce1ff',
+                            200: '#99c3ff',
+                            300: '#66a5ff',
+                            400: '#3387ff',
+                            500: '#0066CC',  /* azzurro Napoli */
+                            600: '#0052a3',
+                            700: '#003d7a',
+                            800: '#002952',
+                            900: '#001429',
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['"Space Mono"', 'monospace'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'Space Mono', monospace; }
+        .status-UP      { background-color: #16a34a; color: #fff; }
+        .status-DOWN    { background-color: #dc2626; color: #fff; }
+        .status-MUMBLE  { background-color: #d97706; color: #fff; }
+        .status-UNKNOWN { background-color: #6b7280; color: #fff; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+    <!-- Navbar -->
+    <nav class="bg-napoli-500 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-14">
+                <a href="/" class="flex items-center gap-2 text-white font-mono font-bold text-lg tracking-tight">
+                    <i class="fa-solid fa-flag"></i>
+                    Napwnli AD
+                </a>
+                <div class="flex items-center gap-6 text-sm font-medium">
+                    <a href="/" class="text-napoli-100 hover:text-white transition-colors">
+                        <i class="fa-solid fa-table-list mr-1"></i>Scoreboard
+                    </a>
+                    <a href="/rules" class="text-napoli-100 hover:text-white transition-colors">
+                        <i class="fa-solid fa-book mr-1"></i>Rules
+                    </a>
+                    {% if session.get('admin') %}
+                    <a href="/admin" class="text-napoli-100 hover:text-white transition-colors">
+                        <i class="fa-solid fa-screwdriver-wrench mr-1"></i>Admin
+                    </a>
+                    <a href="/logout" class="text-napoli-100 hover:text-white transition-colors">
+                        <i class="fa-solid fa-right-from-bracket mr-1"></i>Logout
+                    </a>
+                    {% else %}
+                    <a href="/login" class="text-napoli-100 hover:text-white transition-colors">
+                        <i class="fa-solid fa-lock mr-1"></i>Admin
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+</body>
+</html>

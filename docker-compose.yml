@@ -1,0 +1,35 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ctf
+      POSTGRES_PASSWORD: ctfpassword
+      POSTGRES_DB: ctfdb
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ctf -d ctfdb"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://ctf:ctfpassword@db:5432/ctfdb
+      SECRET_KEY: change_me_before_production
+      ADMIN_PASSWORD: admin
+      TICK_DURATION: 60
+      SLA_BONUS_K: 5
+    volumes:
+      - ./checkers:/app/checkers
+      - ./templates:/app/templates
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
