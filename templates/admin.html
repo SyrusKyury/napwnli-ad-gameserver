@@ -200,7 +200,7 @@
 </div>
 
 <!-- CHECKER LOGS -->
-<div class="bg-white rounded-xl shadow-sm border border-gray-200">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
     <div class="px-5 py-4 border-b border-gray-100">
         <h2 class="font-bold text-gray-800"><i class="fa-solid fa-terminal mr-2 text-napoli-400"></i>Last Checker Results</h2>
     </div>
@@ -209,17 +209,19 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="bg-gray-50 border-b border-gray-100">
-                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold">Team ID</th>
-                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold">Service ID</th>
+                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold">Team</th>
+                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold">Service</th>
                     <th class="text-left px-4 py-2.5 text-gray-500 font-semibold">Tick</th>
                     <th class="text-left px-4 py-2.5 text-gray-500 font-semibold">Status</th>
                 </tr>
             </thead>
             <tbody>
                 {% for key, log in logs.items() %}
+                {% set team_name    = teams   | selectattr('id', 'equalto', key[0]) | map(attribute='name')    | first | default('Team '    ~ key[0]) %}
+                {% set service_name = services| selectattr('id', 'equalto', key[1]) | map(attribute='name')    | first | default('Service ' ~ key[1]) %}
                 <tr class="border-b border-gray-50 hover:bg-gray-50">
-                    <td class="px-4 py-2 font-mono text-gray-600">{{ key[0] }}</td>
-                    <td class="px-4 py-2 font-mono text-gray-600">{{ key[1] }}</td>
+                    <td class="px-4 py-2 font-semibold text-gray-700">{{ team_name }}</td>
+                    <td class="px-4 py-2 text-gray-600">{{ service_name }}</td>
                     <td class="px-4 py-2 font-mono text-gray-400">{{ log.tick }}</td>
                     <td class="px-4 py-2">
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-mono font-bold status-{{ log.status }}">
@@ -233,6 +235,48 @@
     </div>
     {% else %}
     <p class="text-sm text-gray-400 px-5 py-4">No checker results yet. Start the game to see data here.</p>
+    {% endif %}
+</div>
+
+<!-- CHECKER ERRORS -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h2 class="font-bold text-gray-800">
+            <i class="fa-solid fa-circle-exclamation mr-2 text-red-400"></i>Checker Errors
+        </h2>
+        {% if checker_errors %}
+        <span class="text-xs font-semibold text-red-500 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+            {{ checker_errors | length }} active
+        </span>
+        {% endif %}
+    </div>
+    {% if checker_errors %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-100">
+                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold w-32">Team</th>
+                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold w-32">Service</th>
+                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold w-16">Tick</th>
+                    <th class="text-left px-4 py-2.5 text-gray-500 font-semibold">Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in checker_errors %}
+                <tr class="border-b border-gray-50 hover:bg-red-50 transition-colors">
+                    <td class="px-4 py-2.5 font-semibold text-gray-700">{{ e.team }}</td>
+                    <td class="px-4 py-2.5 text-gray-600">{{ e.service }}</td>
+                    <td class="px-4 py-2.5 font-mono text-gray-400">{{ e.tick }}</td>
+                    <td class="px-4 py-2.5 font-mono text-xs text-red-600 break-all">{{ e.error }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400 px-5 py-4">
+        <i class="fa-solid fa-circle-check text-green-400 mr-1"></i>No errors. All services are up.
+    </p>
     {% endif %}
 </div>
 

@@ -3,4 +3,3 @@ Flask-SQLAlchemy
 psycopg2-binary
 requests
 pwntools
-checklib

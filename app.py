@@ -1,11 +1,10 @@
 import os
 import time
 import json
-import random
 import uuid
 import subprocess
 import threading
-from concurrent.futures import ThreadPoolExecutor, wait as futures_wait
+from concurrent.futures import ThreadPoolExecutor, wait as futures_wait, ALL_COMPLETED
 from flask import Flask, request, jsonify, render_template, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import update, UniqueConstraint
@@ -13,12 +12,12 @@ from sqlalchemy import update, UniqueConstraint
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///local.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = os.environ.get('SECRET_KEY', os.urandom(16))
+app.secret_key = os.environ.get('SECRET_KEY')
 if not app.secret_key:
     raise RuntimeError("SECRET_KEY environment variable must be set")
 
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')
-MAX_FLAGS_PER_SUBMIT = 500
+MAX_FLAGS_PER_SUBMIT = 50  # batch submit limit
 
 db = SQLAlchemy(app)
 
@@ -26,6 +25,10 @@ db = SQLAlchemy(app)
 GAME_STATE = {"tick": 0, "active": False}
 RATE_LIMITS = {}
 state_lock = threading.Lock()
+
+# Ultimi errori checker: { (team_id, service_id): {team, service, tick, error} }
+CHECKER_ERRORS = {}
+errors_lock = threading.Lock()
 
 
 # --- DATABASE MODELS ---
@@ -100,6 +103,7 @@ def get_sla_bonus_k():
 # --- GAME HELPERS ---
 
 def get_sla_from_tss(tss):
+    """Calcola SLA da contatori in TSS — O(1), nessuna query."""
     if tss is None or tss.ticks_total == 0:
         return 1.0
     return tss.ticks_up / tss.ticks_total
@@ -124,8 +128,11 @@ def do_reset():
         GAME_STATE['tick'] = 0
         GAME_STATE['active'] = False
     RATE_LIMITS.clear()
+    with errors_lock:
+        CHECKER_ERRORS.clear()
 
 def call_checker(script_path, input_data):
+    """Esegue il checker. Se eseguibile lo chiama direttamente, altrimenti usa python."""
     try:
         executable = os.access(script_path, os.X_OK)
         cmd = [script_path] if executable else ['python', script_path]
@@ -144,22 +151,31 @@ def call_checker(script_path, input_data):
 
 # --- TICK SCHEDULER ---
 
-def run_checker(team_id, team_ip, service_id, checker_file, tick, sla_bonus_k):
+def run_checker(team_id, team_ip, service_id, checker_file, tick):
     script_path = os.path.join('checkers', os.path.basename(checker_file))
 
-    check_out, _ = call_checker(script_path, {'action': 'check', 'ip': team_ip, 'tick': tick})
+    # 1. CHECK
+    check_out, check_err = call_checker(script_path, {
+        'action': 'check', 'ip': team_ip, 'tick': tick
+    })
     check_status = check_out.get('status', 'DOWN').upper()
 
-    flag_str = 'NPW{' + ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMOPQRSTUVWXYZ', k=25)) + '}'
-    put_out, _ = call_checker(script_path, {'action': 'put', 'ip': team_ip, 'flag': flag_str, 'tick': tick})
+    # 2. PUT
+    flag_str = f'NPW_{uuid.uuid4().hex}'
+    put_out, put_err = call_checker(script_path, {
+        'action': 'put', 'ip': team_ip, 'flag': flag_str, 'tick': tick
+    })
     put_status = put_out.get('status', 'DOWN').upper()
     flag_id    = put_out.get('flag_id', '')
     secret     = put_out.get('secret', '')
 
+    # 3. GET
     get_status = 'DOWN'
+    get_err    = ''
     if put_status == 'UP' and flag_id:
-        get_out, _ = call_checker(script_path, {
-            'action': 'get', 'ip': team_ip, 'flag': flag_str,'flag_id': flag_id, 'secret': secret, 'tick': tick
+        get_out, get_err = call_checker(script_path, {
+            'action': 'get', 'ip': team_ip,
+            'flag_id': flag_id, 'secret': secret, 'flag': flag_str, 'tick': tick
         })
         get_status = get_out.get('status', 'DOWN').upper()
 
@@ -170,20 +186,42 @@ def run_checker(team_id, team_ip, service_id, checker_file, tick, sla_bonus_k):
     else:
         final_status = 'DOWN'
 
+    # Raccoglie errori se il servizio non e' UP
+    if final_status != 'UP':
+        parts = []
+        if check_status != 'UP':
+            parts.append(f'check={check_status}' + (f' ({check_err})' if check_err else ''))
+        if put_status != 'UP':
+            parts.append(f'put={put_status}' + (f' ({put_err})' if put_err else ''))
+        if get_status != 'UP' and put_status == 'UP':
+            parts.append(f'get={get_status}' + (f' ({get_err})' if get_err else ''))
+        error_msg = ' | '.join(parts) or final_status
+        with errors_lock:
+            CHECKER_ERRORS[(team_id, service_id)] = {
+                'tick':  tick,
+                'error': error_msg[:300],
+            }
+    else:
+        # Pulisce l'errore precedente se il servizio torna UP
+        with errors_lock:
+            CHECKER_ERRORS.pop((team_id, service_id), None)
+
     with app.app_context():
         db.session.add(CheckerResult(
-            team_id=team_id, service_id=service_id, tick=tick, status=final_status
+            team_id=team_id, service_id=service_id,
+            tick=tick, status=final_status
         ))
-        
         if put_status == 'UP' and flag_id:
             db.session.add(Flag(
                 flag_string=flag_str, team_id=team_id, service_id=service_id,
                 tick_created=tick, flag_id=flag_id, secret=secret
             ))
-            
         db.session.execute(
             update(TeamServiceScore)
-            .where(TeamServiceScore.team_id == team_id, TeamServiceScore.service_id == service_id)
+            .where(
+                TeamServiceScore.team_id == team_id,
+                TeamServiceScore.service_id == service_id
+            )
             .values(
                 ticks_total=TeamServiceScore.ticks_total + 1,
                 ticks_up=TeamServiceScore.ticks_up + (1 if final_status == 'UP' else 0),
@@ -191,24 +229,17 @@ def run_checker(team_id, team_ip, service_id, checker_file, tick, sla_bonus_k):
                 last_tick=tick
             )
         )
-        
-        # Assegnazione atomica e asincrona dello SLA Bonus
-        if final_status == 'UP' and sla_bonus_k > 0:
-            db.session.execute(
-                update(Team)
-                .where(Team.id == team_id)
-                .values(score=Team.score + sla_bonus_k)
-            )
-            
         db.session.commit()
 
 def tick_loop():
     with app.app_context():
         while True:
+            # Legge config una volta per tick, non ad ogni iterazione del while
             tick_duration = get_tick_duration()
 
             if GAME_STATE['active']:
                 tick_start = time.time()
+
                 with state_lock:
                     GAME_STATE['tick'] += 1
                 tick = GAME_STATE['tick']
@@ -217,40 +248,53 @@ def tick_loop():
                 teams    = [(t.id, t.ip) for t in Team.query.all()]
                 services = [(s.id, s.checker_file) for s in Service.query.all()]
 
-                # Pre-crea TSS mancanti nel thread principale per limitare insert concorrenti
+                # Pre-crea TSS mancanti nel thread principale per evitare
+                # la race condition di get_or_create concorrente nei worker
                 for team_id, _ in teams:
                     for service_id, _ in services:
                         exists = TeamServiceScore.query.filter_by(
                             team_id=team_id, service_id=service_id
                         ).first()
                         if not exists:
-                            db.session.add(TeamServiceScore(team_id=team_id, service_id=service_id))
+                            db.session.add(TeamServiceScore(
+                                team_id=team_id, service_id=service_id
+                            ))
                 db.session.commit()
 
                 min_tick = max(0, tick - 5)
                 Flag.query.filter(Flag.tick_created < min_tick).delete()
                 db.session.commit()
 
-                sla_bonus_k = get_sla_bonus_k()
                 checker_timeout = max(10, tick_duration - 5)
 
-                # Creazione manuale per evitare il blocco all'uscita dal context manager
-                executor = ThreadPoolExecutor(max_workers=20)
-                futures =[
-                    executor.submit(run_checker, team_id, team_ip, service_id, checker_file, tick, sla_bonus_k)
-                    for team_id, team_ip in teams
-                    for service_id, checker_file in services
-                ]
-                
-                done, not_done = futures_wait(futures, timeout=checker_timeout)
-                if not_done:
-                    print(f'WARNING: {len(not_done)} checkers timed out at tick {tick}')
-                
-                # Sgancia i thread appesi e previene lo start di quelli in coda (Python 3.9+)
-                try:
-                    executor.shutdown(wait=False, cancel_futures=True)
-                except TypeError:
-                    executor.shutdown(wait=False)
+                with ThreadPoolExecutor(max_workers=20) as executor:
+                    futures = [
+                        executor.submit(
+                            run_checker,
+                            team_id, team_ip, service_id, checker_file, tick
+                        )
+                        for team_id, team_ip in teams
+                        for service_id, checker_file in services
+                    ]
+                    done, not_done = futures_wait(futures, timeout=checker_timeout)
+                    if not_done:
+                        print(f'WARNING: {len(not_done)} checkers timed out at tick {tick}')
+
+                # Bonus SLA — usa i contatori in TSS, nessuna query aggiuntiva
+                sla_bonus_k = get_sla_bonus_k()
+                results_this_tick = CheckerResult.query.filter_by(tick=tick).all()
+                bonus_map = {}
+                for r in results_this_tick:
+                    if r.status == 'UP':
+                        bonus_map[r.team_id] = bonus_map.get(r.team_id, 0.0) + sla_bonus_k
+
+                for team_id, bonus in bonus_map.items():
+                    db.session.execute(
+                        update(Team)
+                        .where(Team.id == team_id)
+                        .values(score=Team.score + bonus)
+                    )
+                db.session.commit()
 
                 elapsed    = time.time() - tick_start
                 sleep_time = max(1, tick_duration - elapsed)
@@ -267,6 +311,7 @@ def scoreboard():
     teams    = Team.query.order_by(Team.score.desc()).all()
     services = Service.query.all()
 
+    # Tutto da TSS — due query, nessuno scan di CheckerResult
     all_tss = TeamServiceScore.query.all()
     tss_map = {(r.team_id, r.service_id): r for r in all_tss}
 
@@ -364,11 +409,30 @@ def admin():
         f for f in os.listdir('checkers')
         if os.path.isfile(os.path.join('checkers', f))
         and not f.startswith('.')
-    ) if os.path.exists('checkers') else[]
+    ) if os.path.exists('checkers') else []
 
+    # Logs da TSS — nessun scan di CheckerResult
     all_tss  = TeamServiceScore.query.all()
     all_last = {(r.team_id, r.service_id): {'status': r.last_status, 'tick': r.last_tick}
                 for r in all_tss if r.last_status != 'UNKNOWN'}
+
+    # Mappa id -> nome per team e service
+    teams_list    = Team.query.all()
+    services_list = Service.query.all()
+    team_names    = {t.id: t.name    for t in teams_list}
+    service_names = {s.id: s.name    for s in services_list}
+
+    # Errori in memoria arricchiti con nomi leggibili
+    with errors_lock:
+        checker_errors = [
+            {
+                'team':    team_names.get(tid, f'Team {tid}'),
+                'service': service_names.get(sid, f'Service {sid}'),
+                'tick':    v['tick'],
+                'error':   v['error'],
+            }
+            for (tid, sid), v in sorted(CHECKER_ERRORS.items(), key=lambda x: x[1]['tick'], reverse=True)
+        ]
 
     cfg = {
         'tick_duration': get_tick_duration(),
@@ -376,11 +440,12 @@ def admin():
     }
 
     return render_template('admin.html',
-                           teams=Team.query.all(),
-                           services=Service.query.all(),
+                           teams=teams_list,
+                           services=services_list,
                            state=GAME_STATE,
                            checkers=checkers_avail,
                            logs=all_last,
+                           checker_errors=checker_errors,
                            cfg=cfg)
 
 
@@ -395,6 +460,7 @@ def get_flagids(service_id):
         Flag.captured == False
     ).all()
 
+    # Pre-carica i team in un dict — evita N+1
     team_ids = {f.team_id for f in flags}
     teams    = {t.id: t for t in Team.query.filter(Team.id.in_(team_ids)).all()}
 
@@ -402,7 +468,7 @@ def get_flagids(service_id):
     for f in flags:
         team = teams.get(f.team_id)
         if team:
-            result.setdefault(team.ip,[]).append(f.flag_id)
+            result.setdefault(team.ip, []).append(f.flag_id)
     return jsonify(result)
 
 @app.route('/api/submit', methods=['POST'])
@@ -420,11 +486,12 @@ def submit_flag():
 
     body = request.get_json(force=True, silent=True) or {}
 
+    # Accetta {"flag": "..."} oppure {"flags": [...]} — type-safe
     if 'flags' in body:
         raw = body['flags']
         if not isinstance(raw, list):
             return jsonify({'error': '"flags" must be a list'}), 400
-        flag_strings =[f for f in raw if isinstance(f, str)][:MAX_FLAGS_PER_SUBMIT]
+        flag_strings = [f for f in raw if isinstance(f, str)][:MAX_FLAGS_PER_SUBMIT]
     elif 'flag' in body:
         if not isinstance(body['flag'], str):
             return jsonify({'error': '"flag" must be a string'}), 400
@@ -432,7 +499,7 @@ def submit_flag():
     else:
         return jsonify({'error': 'Missing flag or flags field'}), 400
 
-    results =[]
+    results = []
     for flag_str in flag_strings:
         try:
             flag = Flag.query.filter_by(flag_string=flag_str).with_for_update().first()
@@ -450,16 +517,8 @@ def submit_flag():
                 continue
 
             BASE = 10.0
-            
-            # Anti-Deadlock: ordinamento deterministico dei lock sul DB
-            id_first, id_second = sorted([team.id, flag.team_id])
-
-            if id_first == team.id:
-                attacker_tss = get_or_create_tss(id_first, flag.service_id)
-                victim_tss   = get_or_create_tss(id_second, flag.service_id)
-            else:
-                victim_tss   = get_or_create_tss(id_first, flag.service_id)
-                attacker_tss = get_or_create_tss(id_second, flag.service_id)
+            attacker_tss = get_or_create_tss(team.id, flag.service_id)
+            victim_tss   = get_or_create_tss(flag.team_id, flag.service_id)
 
             attacker_sla  = get_sla_from_tss(attacker_tss)
             victim_sla    = get_sla_from_tss(victim_tss)
@@ -487,8 +546,7 @@ def submit_flag():
                 .values(flags_lost=TeamServiceScore.flags_lost + 1)
             )
             flag.captured = True
-            db.session.commit()
-            
+            db.session.commit()  # commit per-flag: un crash non butta via l'intero batch
             results.append({'flag': flag_str, 'status': 'ACCEPTED', 'points': points_gained})
 
         except Exception as e:
