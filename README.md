@@ -47,11 +47,11 @@ steal flags, and submit them to gain points.
 +-------------------+        +------------------+
 |   Flask App       |        |   tick_loop      |
 |                   |        |   (background    |
-|  /               |        |    thread)       |
-|  /admin          |        |                  |
-|  /rules          |        |  for each team   |
-|  /api/flagids    |        |  for each svc:   |
-|  /api/submit     |        |    check         |
+|  /                |        |    thread)       |
+|  /admin           |        |                  |
+|  /rules           |        |  for each team   |
+|  /api/flagids     |        |  for each svc:   |
+|  /api/submit      |        |    check         |
 |                   |        |    put           |
 +--------+----------+        |    get           |
          |                   +--------+---------+
@@ -350,9 +350,3 @@ gameserver/
 
 `TICK_DURATION` and `SLA_BONUS_K` can be overridden at runtime from the admin
 panel. Changes take effect after a competition reset.
-
----
-
-## License
-
-MIT
