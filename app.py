@@ -158,7 +158,7 @@ def run_checker(team_id, team_ip, service_id, checker_file, tick, sla_bonus_k):
     get_status = 'DOWN'
     if put_status == 'UP' and flag_id:
         get_out, _ = call_checker(script_path, {
-            'action': 'get', 'ip': team_ip, 'flag_id': flag_id, 'secret': secret, 'tick': tick
+            'action': 'get', 'ip': team_ip, 'flag': flag_str,'flag_id': flag_id, 'secret': secret, 'tick': tick
         })
         get_status = get_out.get('status', 'DOWN').upper()
 
