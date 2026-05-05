@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import random
 import uuid
 import subprocess
 import threading
@@ -149,7 +150,7 @@ def run_checker(team_id, team_ip, service_id, checker_file, tick, sla_bonus_k):
     check_out, _ = call_checker(script_path, {'action': 'check', 'ip': team_ip, 'tick': tick})
     check_status = check_out.get('status', 'DOWN').upper()
 
-    flag_str = f'NPW_{uuid.uuid4().hex}'
+    flag_str = 'NPW{' + ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMOPQRSTUVWXYZ', k=25)) + '}'
     put_out, _ = call_checker(script_path, {'action': 'put', 'ip': team_ip, 'flag': flag_str, 'tick': tick})
     put_status = put_out.get('status', 'DOWN').upper()
     flag_id    = put_out.get('flag_id', '')
