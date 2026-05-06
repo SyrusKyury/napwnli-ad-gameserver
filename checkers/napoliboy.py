@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys
 import json
 
@@ -77,6 +78,7 @@ def get(ip: str, flag_id: str, flag: str, secret: str):
     connection.sendlineafter(b'> ', b'3')
     connection.sendlineafter(b': ', flag_id.encode())
     connection.sendlineafter(b': ', random_string(10).encode())
+    connection.recvline()  # skip echo
     res_wrong = connection.recvline()
     if b"Secret is valid" in res_wrong:
         connection.close()
@@ -86,6 +88,7 @@ def get(ip: str, flag_id: str, flag: str, secret: str):
     connection.sendlineafter(b'> ', b'3')
     connection.sendlineafter(b': ', flag_id.encode())
     connection.sendlineafter(b': ', flag.encode())
+    connection.recvline()  # skip echo
     res_correct = connection.recvline()
 
     connection.sendlineafter(b'> ', b'4')

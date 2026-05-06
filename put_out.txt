@@ -1,0 +1,1 @@
+{"status": "UP", "flag_id": "Ojb575FNfc", "secret": ""}
