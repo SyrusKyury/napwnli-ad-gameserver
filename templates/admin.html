@@ -308,14 +308,25 @@
 
 <script>
 let pendingForm = null;
+let pendingAction = null;
 
-function showModal(title, body, form) {
+function showModal(title, body, form, actionName) {
     pendingForm = form;
+    pendingAction = actionName;
     document.getElementById('modal-title').textContent = title;
     document.getElementById('modal-body').textContent = body;
     document.getElementById('modal-confirm').onclick = () => {
+        const form = pendingForm;
+        const action = pendingAction;
         closeModal();
-        pendingForm.submit();
+        if (action) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = action;
+            hidden.value = '1';
+            form.appendChild(hidden);
+        }
+        form.submit();
     };
     document.getElementById('modal').classList.remove('hidden');
 }
@@ -323,6 +334,7 @@ function showModal(title, body, form) {
 function closeModal() {
     document.getElementById('modal').classList.add('hidden');
     pendingForm = null;
+    pendingAction = null;
 }
 
 function confirmConfig(e) {
@@ -330,7 +342,8 @@ function confirmConfig(e) {
     showModal(
         'Save settings and reset?',
         'Changing Tick Duration or SLA Bonus K requires a full competition reset. All scores, flags and SLA data will be permanently deleted. Are you sure?',
-        e.target
+        e.target,
+        'save_config'
     );
     return false;
 }
@@ -340,7 +353,8 @@ function confirmReset(e) {
     showModal(
         'Reset competition?',
         'All scores, flags, checker results and SLA data will be permanently deleted. Teams and services will be preserved. This action cannot be undone.',
-        e.target
+        e.target,
+        'reset'
     );
     return false;
 }
