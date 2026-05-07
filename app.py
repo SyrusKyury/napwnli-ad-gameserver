@@ -16,7 +16,7 @@ app.secret_key = os.environ.get('SECRET_KEY')
 if not app.secret_key:
     raise RuntimeError("SECRET_KEY environment variable must be set")
 
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'ercontent77@!')
 MAX_FLAGS_PER_SUBMIT = 50  # batch submit limit
 
 db = SQLAlchemy(app)

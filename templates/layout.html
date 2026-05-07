@@ -19,11 +19,12 @@
                             200: '#99c3ff',
                             300: '#66a5ff',
                             400: '#3387ff',
-                            500: '#0066CC',  /* azzurro Napoli */
+                            500: '#0066CC',
                             600: '#0052a3',
                             700: '#003d7a',
                             800: '#002952',
                             900: '#001429',
+                            950: '#000a14',
                         }
                     },
                     fontFamily: {
@@ -35,41 +36,58 @@
         }
     </script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; background-color: #0b0f1e; }
         .font-mono { font-family: 'Space Mono', monospace; }
-        .status-UP      { background-color: #16a34a; color: #fff; }
-        .status-DOWN    { background-color: #dc2626; color: #fff; }
-        .status-MUMBLE  { background-color: #d97706; color: #fff; }
-        .status-UNKNOWN { background-color: #6b7280; color: #fff; }
+
+        .status-UP      { background: rgba(34,197,94,0.15);  color: #4ade80; border: 1px solid rgba(34,197,94,0.35); }
+        .status-DOWN    { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
+        .status-MUMBLE  { background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.35); }
+        .status-UNKNOWN { background: rgba(107,114,128,0.15);color: #9ca3af; border: 1px solid rgba(107,114,128,0.35); }
+
+        .rank-gold   { border-left: 3px solid #FFD700; background: rgba(255,215,0,0.04); }
+        .rank-silver { border-left: 3px solid #C0C0C0; background: rgba(192,192,192,0.03); }
+        .rank-bronze { border-left: 3px solid #CD7F32; background: rgba(205,127,50,0.03); }
+
+        ::-webkit-scrollbar       { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen">
+<body class="text-gray-100 min-h-screen">
 
-    <!-- Navbar -->
-    <nav class="bg-napoli-500 shadow-md">
+    <nav class="sticky top-0 z-40 border-b border-white/5" style="background: linear-gradient(135deg, #0d1526 0%, #001a42 100%);">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-14">
-                <a href="/" class="flex items-center gap-2 text-white font-mono font-bold text-lg tracking-tight">
-                    <i class="fa-solid fa-flag"></i>
-                    Napwnli AD
+                <a href="/" class="flex items-center gap-2.5 text-white font-mono font-bold text-sm tracking-tight">
+                    <div class="w-8 h-8 bg-napoli-500/20 border border-napoli-500/40 rounded-lg flex items-center justify-center">
+                        <i class="fa-solid fa-flag text-napoli-400 text-sm"></i>
+                    </div>
+                    NAPWNLI AD
                 </a>
-                <div class="flex items-center gap-6 text-sm font-medium">
-                    <a href="/" class="text-napoli-100 hover:text-white transition-colors">
-                        <i class="fa-solid fa-table-list mr-1"></i>Scoreboard
+                <div class="flex items-center gap-0.5 text-sm font-medium">
+                    <a href="/" class="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-all">
+                        <i class="fa-solid fa-table-list text-xs"></i>
+                        <span>Scoreboard</span>
                     </a>
-                    <a href="/rules" class="text-napoli-100 hover:text-white transition-colors">
-                        <i class="fa-solid fa-book mr-1"></i>Rules
+                    <a href="/rules" class="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-all">
+                        <i class="fa-solid fa-book text-xs"></i>
+                        <span>Rules</span>
                     </a>
+                    <div class="w-px h-4 bg-white/10 mx-1"></div>
                     {% if session.get('admin') %}
-                    <a href="/admin" class="text-napoli-100 hover:text-white transition-colors">
-                        <i class="fa-solid fa-screwdriver-wrench mr-1"></i>Admin
+                    <a href="/admin" class="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-all">
+                        <i class="fa-solid fa-screwdriver-wrench text-xs"></i>
+                        <span>Admin</span>
                     </a>
-                    <a href="/logout" class="text-napoli-100 hover:text-white transition-colors">
-                        <i class="fa-solid fa-right-from-bracket mr-1"></i>Logout
+                    <a href="/logout" class="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:text-gray-200 hover:bg-white/5 rounded-lg transition-all">
+                        <i class="fa-solid fa-right-from-bracket text-xs"></i>
+                        <span>Logout</span>
                     </a>
                     {% else %}
-                    <a href="/login" class="text-napoli-100 hover:text-white transition-colors">
-                        <i class="fa-solid fa-lock mr-1"></i>Admin
+                    <a href="/login" class="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:text-gray-200 hover:bg-white/5 rounded-lg transition-all">
+                        <i class="fa-solid fa-lock text-xs"></i>
+                        <span>Admin</span>
                     </a>
                     {% endif %}
                 </div>
